@@ -49,21 +49,24 @@ for step = 1:steps
     %
     % Step 3. Update the SR support
     %
-    % Update shat to become smacron at indeces where istar.
-    idx = istar + (0:size(shat,1):(numel(shat)-1)); % a shortcut to get linear indeces
-    shat(idx) = smacron(idx);    
+    % Update shat to become smacron at indices where istar.
+    idx = istar + (0:size(shat,1):(numel(shat)-1)); % a shortcut to get linear indices
+    shat(idx) = smacron(idx);
+    % TODO: use array indexing instead of linear indexing
     
     %
     % Step 4. Update the SR coefficients
     %
     % Here we have calculation of inverse, which will be done sequentially,
-    % in a loop. Luckily, complexity is function of sparsity, and not a function
-    % of dimensionality of the problem, so it's not prohibitively expensive.    
+    % in a loop. Luckily, complexity of this step is a function of sparsity
+    % and not a function of dimensionality of the problem, so it's not
+    % prohibitively expensive.
+    xhat = sparse(siglen, numsignals);
     for idx=1:numsignals
         support = logical(shat(:,idx));
         phisub = phi(:,support);
-        xhat(:,idx) = zeros(size(xhat,1),1);
-        xhat(support,idx) = inv(phisub.'*phisub + eye(size(phisub,2)).*stddev./stddevx)*phisub.'*y(:,idx);
+        xhat(support,idx) = (phisub.'*phisub + eye(size(phisub,2)).*stddev./stddevx)\phisub.'*y(:,idx);
+        % xhat(support,idx) = inv(phisub.'*phisub + eye(size(phisub,2)).*stddev./stddevx)*phisub.'*y(:,idx);
     end
     
     %

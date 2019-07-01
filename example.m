@@ -2,7 +2,7 @@
 % Generating input signals
 %
 siglen = 2048;
-numsignals = 5;  % We'll process several signals, in paralell until we'll need inversed
+numsignals = 5;  % We'll process several signals (in paralell, until to point we'll need inverses/projections)
 targetsparsity = 64/siglen; % Expecting 64 active coefficient on average per signal
 stddev = 0.01;
 stddevx = 1;
