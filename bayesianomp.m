@@ -1,5 +1,5 @@
 function [ xhat ] = bayesianomp(...
-    phi, y, stddev, stddevx, b, steps)
+    phi, y, stddev, stddevx, b, steps, minsupport)
 %bayesianomp Bayesian Orthogonal Matching Pursuit, according to
 %  "Structured Bayesian Orthogonal Matching Pursuit", Dremeau et al.
 %   Not as general as the implementation in the paper; it uses Bernoulli
@@ -21,6 +21,7 @@ function [ xhat ] = bayesianomp(...
 % Note: convergence criterion is not implemented; based on stddev, stddevx
 % and b, the algorithm may decide not to use additional atoms.
 % Still, why not have it, based on the posterior probability - a TODO.
+% TODO: avoid transposing phi all the time
 
 siglen = size(phi,2);
 numsignals = size(y,2);
@@ -28,23 +29,36 @@ numsignals = size(y,2);
 r = y;  % initial residual
 shat = sparse(siglen, numsignals);
 xhat = sparse(siglen, numsignals);
-for step = 1:steps    
-    
+for step = 1:steps
     %
     % Step 1. s macron
     %
+    % A modification of the original algorithm - insist on minimal cardinality
+    % of support    
+    cardinalitytoosmall = sum(shat,1) < minsupport;
+    %
     thresh = -2.*stddev.*(stddev./stddevx+1).*b;
-    smacron = (phi.'*r + xhat).^2 > thresh;
-    
+    expression = (phi.'*r + xhat).^2;
+    smacron = expression > thresh;
+    %
+    smacron(:,cardinalitytoosmall) = true;
+
     %
     % Step 2. Choose the atom to be modified
-    %
-    xmacron = smacron.*(phi.'*r+ xhat)./(stddev./stddevx+1);    
-    argminof = 1./(2.*stddev).*(...
-        sqrt(sum(r.^2) + 2.*phi.'*r.*(xhat-xmacron) + (xhat-xmacron).^2)) ...% We assume that sum(phi.^2) ==1 (third summand)
-        - 1./(2.*stddevx).*(xhat.^2-xmacron.^2)....
-        + (shat-smacron).*b;    
-    [~, istar] = min(argminof);
+    %    
+    xmacron = smacron.*(phi.'*r+ xhat)./(stddev./stddevx+1);
+    
+    argminof = ...
+        sqrt(sum(r.^2) + 2.*phi.'*r.*(xhat-xmacron) + bsxfun(@times, (xhat-xmacron).^2, sum(phi.^2).')) ...
+        - stddev./stddevx.*xmacron.^2 ...
+        + stddev.*(shat-smacron).*b.*smacron;
+        
+    % In case smacron(istar) == shat(istart), the iteration will make no change
+    % to the signal approximation. Therefore, we intervene and find argmin
+    % which will introduce an actual change.
+    no_change_here = smacron == shat;
+    argminof(no_change_here) = Inf;
+    [~, istar] = min(argminof);            
     
     %
     % Step 3. Update the SR support
@@ -63,15 +77,15 @@ for step = 1:steps
     % prohibitively expensive.
     xhat = sparse(siglen, numsignals);
     for idx=1:numsignals
-        support = logical(shat(:,idx));
-        phisub = phi(:,support);
-        xhat(support,idx) = (phisub.'*phisub + eye(size(phisub,2)).*stddev./stddevx)\phisub.'*y(:,idx);
+        supp = find(shat(:,idx));
+        phisub = phi(:,supp);
+        xhat(supp,idx) = (phisub.'*phisub + eye(size(phisub,2)).*stddev./stddevx)\phisub.'*y(:,idx);
         % xhat(support,idx) = inv(phisub.'*phisub + eye(size(phisub,2)).*stddev./stddevx)*phisub.'*y(:,idx);
     end
     
     %
     % Step 5: Update the residual
     %
-    r = y - phi*xhat;
+    r = y - phi*xhat;        
 end
 
