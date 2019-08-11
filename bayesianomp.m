@@ -1,5 +1,5 @@
 function [ xhat ] = bayesianomp(...
-    phi, y, stddev, stddevx, b, steps, minsupport)
+    phi, y, vari, varix, b, steps, minsupport)
 %bayesianomp Bayesian Orthogonal Matching Pursuit, according to
 %  "Structured Bayesian Orthogonal Matching Pursuit", Dremeau et al.
 %   Not as general as the implementation in the paper; it uses Bernoulli
@@ -10,15 +10,15 @@ function [ xhat ] = bayesianomp(...
 % Arguments:
 % phi       ... dictionary, sensing matrix (IxM). Make sure the atoms have unit l2-norm.
 % y         ... compressed representation (IxN), where N is the number of input signals
-% stddev    ... standard deviation of noise
-% stddevx   ... standard deviation of activations (given the coefficient is active)
+% vari    ... standard deviation of noise
+% varix   ... standard deviation of activations (given the coefficient is active)
 % b         ... parameterization of Bernouli pdf, b = 1./(1+exp(-p)), where p is probability of `1`
 % steps     ... number of iterations. Number of active atoms returned cannot exceed this value
 %
 % Returns:
 % MxN sparse matrix of activation coefficients
 %
-% Note: convergence criterion is not implemented; based on stddev, stddevx
+% Note: convergence criterion is not implemented; based on vari, varix
 % and b, the algorithm may decide not to use additional atoms.
 % Still, why not have it, based on the posterior probability - a TODO.
 % TODO: avoid transposing phi all the time
@@ -37,35 +37,35 @@ for step = 1:steps
     % of support    
     cardinalitytoosmall = sum(shat,1) < minsupport;
     %
-    thresh = -2.*stddev.*(stddev./stddevx+1).*b;
+    thresh = -2.*vari.*(vari./varix+1).*b;
     expression = (phi.'*r + xhat).^2;
-    smacron = expression > thresh;
+    stilde = expression > thresh;
     %
-    smacron(:,cardinalitytoosmall) = true;
+    stilde(:,cardinalitytoosmall) = true;
 
     %
     % Step 2. Choose the atom to be modified
     %    
-    xmacron = smacron.*(phi.'*r+ xhat)./(stddev./stddevx+1);
+    xtilde = stilde.*(phi.'*r+ xhat)./(vari./varix+1);
     
     argminof = ...
-        sqrt(sum(r.^2) + 2.*phi.'*r.*(xhat-xmacron) + bsxfun(@times, (xhat-xmacron).^2, sum(phi.^2).')) ...
-        - stddev./stddevx.*xmacron.^2 ...
-        + stddev.*(shat-smacron).*b.*smacron;
+        sqrt(sum(r.^2) + 2.*phi.'*r.*(xhat-xtilde) + bsxfun(@times, (xhat-xtilde).^2, sum(phi.^2).')) ...
+        - vari./varix.*xtilde.^2 ...
+        + vari.*(shat-stilde).*b.*stilde;
         
-    % In case smacron(istar) == shat(istart), the iteration will make no change
+    % In case stilde(istar) == shat(istart), the iteration will make no change
     % to the signal approximation. Therefore, we intervene and find argmin
     % which will introduce an actual change.
-    no_change_here = smacron == shat;
+    no_change_here = stilde == shat;
     argminof(no_change_here) = Inf;
     [~, istar] = min(argminof);            
     
     %
     % Step 3. Update the SR support
     %
-    % Update shat to become smacron at indices where istar.
+    % Update shat to become stilde at indices where istar.
     idx = istar + (0:size(shat,1):(numel(shat)-1)); % a shortcut to get linear indices
-    shat(idx) = smacron(idx);
+    shat(idx) = stilde(idx);
     % TODO: use array indexing instead of linear indexing
     
     %
@@ -79,8 +79,8 @@ for step = 1:steps
     for idx=1:numsignals
         supp = find(shat(:,idx));
         phisub = phi(:,supp);
-        xhat(supp,idx) = (phisub.'*phisub + eye(size(phisub,2)).*stddev./stddevx)\phisub.'*y(:,idx);
-        % xhat(support,idx) = inv(phisub.'*phisub + eye(size(phisub,2)).*stddev./stddevx)*phisub.'*y(:,idx);
+        xhat(supp,idx) = (phisub.'*phisub + eye(size(phisub,2)).*vari./varix)\phisub.'*y(:,idx);
+        % xhat(support,idx) = inv(phisub.'*phisub + eye(size(phisub,2)).*vari./varix)*phisub.'*y(:,idx);
     end
     
     %

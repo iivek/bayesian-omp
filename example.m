@@ -4,8 +4,8 @@
 siglen = 2048;
 numsignals = 3;  % We'll process several signals (in paralell, until to point we'll need inverses/projections)
 targetsparsity = 64/siglen; % Expecting 64 active coefficient on average per signal
-stddev = 0.1; % Relatively hgh noise
-stddevx = 1;
+stddevsq = 0.1; % Relatively hgh noise
+stddevsqx = 1;
 %
 % Sensing matrix
 measurements = 256;
@@ -21,16 +21,16 @@ b = -log(1./p-1); % parameterization used by the model
 %
 % Magnitudes, x
 x = sparse(siglen, numsignals);
-x(s) = stddevx.*randn(nnz(s),1);
-y = phi*x + stddev.*randn(size(phi,1), size(x,2));
+x(s) = stddevsqx.*randn(nnz(s),1);
+y = phi*x + stddevsq.*randn(size(phi,1), size(x,2));
 
 
 %   %   %   %   %   %   %   %   %   %   %   %   %   %   %   %   %   %
 % Bayesian OMP 
 %
 steps = 64 + 16;
-recon = bayesianomp( phi, y, stddev, stddevx, b, steps, 64);
-recon_no_prior = bayesianomp( phi, y, stddev, stddevx, b*0, steps, 64);
+recon = bayesianomp( phi, y, stddevsq, stddevsqx, b, steps, 64);
+recon_no_prior = bayesianomp( phi, y, stddevsq, stddevsqx, b*0, steps, 64);
 
 signals_to_plot = [1,2,3];
 for s = signals_to_plot
